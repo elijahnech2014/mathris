@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Тетрис + Радуга 🌈 + МЕГА ВЗРЫВЫ 💥</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  .game-container { display: flex; gap: 30px; align-items: flex-start; }
+  .board-wrapper {
+    background: rgba(0,0,0,0.4);
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+    transition: transform 0.05s;
+  }
+  canvas {
+    background: #111;
+    display: block;
+    border: 2px solid #444;
+  }
+  .info {
+    background: rgba(0,0,0,0.4);
+    padding: 20px;
+    border-radius: 10px;
+    min-width: 200px;
+  }
+  .info h2 { margin-bottom: 10px; color: #ffd700; }
+  .info p { margin: 8px 0; font-size: 18px; }
+  .next-preview {
+    margin-top: 15px;
+    padding: 10px;
+    background: #111;
+    border-radius: 5px;
+    text-align: center;
+  }
+  .controls {
+    margin-top: 15px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #ccc;
+  }
+  .controls b { color: #ffd700; }
+
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8);
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+  }
+  .modal.active { display: flex; }
+  .modal-content {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    padding: 40px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 0 50px rgba(255,215,0,0.5);
+    animation: pop 0.4s ease;
+  }
+  @keyframes pop {
+    from { transform: scale(0.5); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .modal-content h2 {
+    font-size: 28px;
+    margin-bottom: 15px;
+    color: #ffd700;
+  }
+  .equation {
+    font-size: 36px;
+    margin: 20px 0;
+    padding: 20px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 10px;
+    font-weight: bold;
+  }
+  .modal-content input {
+    font-size: 24px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    text-align: center;
+    width: 150px;
+    margin: 10px;
+  }
+  .modal-content button {
+    font-size: 20px;
+    padding: 12px 30px;
+    border-radius: 8px;
+    border: none;
+    background: #ffd700;
+    color: #333;
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s;
+  }
+  .modal-content button:hover { transform: scale(1.05); }
+  .feedback {
+    margin-top: 15px;
+    font-size: 20px;
+    min-height: 30px;
+    font-weight: bold;
+  }
+  .feedback.correct { color: #90EE90; }
+  .feedback.wrong { color: #FFB6C1; }
+
+  .game-over {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9);
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    z-index: 200;
+  }
+  .game-over.active { display: flex; }
+  .game-over h1 { font-size: 60px; color: #ff4444; margin-bottom: 20px; }
+  .game-over p { font-size: 24px; margin: 10px; }
+  .game-over button {
+    margin-top: 20px;
+    padding: 15px 40px;
+    font-size: 22px;
+    border-radius: 10px;
+    border: none;
+    background: #ffd700;
+    cursor: pointer;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+
+<div class="game-container">
+  <div class="board-wrapper" id="boardWrapper">
+    <canvas id="board" width="300" height="600"></canvas>
+  </div>
+  <div class="info">
+    <h2>📊 Статистика</h2>
+    <p>Очки: <b id="score">0</b></p>
+    <p>Уровень: <b id="level">1</b></p>
+    <p>Линий: <b id="lines">0</b></p>
+    <p>Решено задач: <b id="solved">0</b></p>
+    <div class="next-preview">
+      <h3>Следующая:</h3>
+      <canvas id="next" width="120" height="120"></canvas>
+    </div>
+    <div class="controls">
+      <b>← →</b> — движение<br>
+      <b>↑</b> — поворот<br>
+      <b>↓</b> — ускорить<br>
+      <b>Пробел</b> — сброс вниз<br>
+      <b>P</b> — пауза
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="mathModal">
+  <div class="modal-content">
+    <h2>🧮 Реши уравнение!</h2>
+    <p id="difficultyLabel">Сложность: лёгкая</p>
+    <div class="equation" id="equation">x + 5 = 12</div>
+    <p>Найди значение <b>x</b>:</p>
+    <input type="number" id="answerInput" placeholder="x = ?">
+    <button onclick="checkAnswer()">Ответить</button>
+    <div class="feedback" id="feedback"></div>
+  </div>
+</div>
+
+<div class="game-over" id="gameOver">
+  <h1>ИГРА ОКОНЧЕНА</h1>
+  <p>Очки: <span id="finalScore">0</span></p>
+  <p>Решено задач: <span id="finalSolved">0</span></p>
+  <button onclick="location.reload()">Играть снова</button>
+</div>
+
+<script>
+// ========== НАСТРОЙКИ ==========
+const COLS = 10, ROWS = 20, BLOCK = 30;
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const nextCanvas = document.getElementById('next');
+const nextCtx = nextCanvas.getContext('2d');
+
+const SHAPES = {
+  I: [[1,1,1,1]],
+  O: [[1,1],[1,1]],
+  T: [[0,1,0],[1,1,1]],
+  S: [[0,1,1],[1,1,0]],
+  Z: [[1,1,0],[0,1,1]],
+  J: [[1,0,0],[1,1,1]],
+  L: [[0,0,1],[1,1,1]]
+};
+
+// ========== СОСТОЯНИЕ ==========
+let board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+let current, next, score = 0, level = 1, lines = 0, solved = 0;
+let dropCounter = 0, dropInterval = 1000, lastTime = 0;
+let paused = false, gameOver = false;
+let pendingLinesData = null;
+let pendingLinesCount = 0;
+let gameTime = 0;
+
+// ========== СИСТЕМА ЧАСТИЦ ==========
+let particles = [];
+let shockwaves = [];
+let boomTexts = [];
+let flashAlpha = 0;
+let screenShake = 0;
+
+const HUE_SPEED = 60;
+
+function hueToColor(hue, saturation = 85, lightness = 55) {
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
+class Particle {
+  constructor(x, y, color, type = 'normal') {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.type = type;
+    
+    if (type === 'smoke') {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 1.5 + 0.5;
+      this.vx = Math.cos(angle) * speed;
+      this.vy = Math.sin(angle) * speed - 1.5;
+      this.size = Math.random() * 8 + 6;
+      this.life = 1;
+      this.decay = Math.random() * 0.008 + 0.005;
+      this.gravity = -0.05;
+    } else if (type === 'spark') {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 15 + 8;
+      this.vx = Math.cos(angle) * speed;
+      this.vy = Math.sin(angle) * speed;
+      this.size = Math.random() * 2 + 1;
+      this.life = 1;
+      this.decay = Math.random() * 0.03 + 0.02;
+      this.gravity = 0.3;
+    } else {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 12 + 5;
+      this.vx = Math.cos(angle) * speed;
+      this.vy = Math.sin(angle) * speed - 3;
+      this.size = Math.random() * 6 + 4;
+      this.life = 1;
+      this.decay = Math.random() * 0.012 + 0.008;
+      this.gravity = 0.3;
+    }
+    
+    this.rotation = Math.random() * Math.PI * 2;
+    this.rotSpeed = (Math.random() - 0.5) * 0.4;
+    this.trail = [];
+  }
+  
+  update() {
+    if (this.type === 'normal' && this.trail.length < 5) {
+      this.trail.push({x: this.x, y: this.y, life: 1});
+    }
+    
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vy += this.gravity;
+    this.vx *= 0.98;
+    this.life -= this.decay;
+    this.rotation += this.rotSpeed;
+    
+    this.trail.forEach(t => t.life -= 0.08);
+    this.trail = this.trail.filter(t => t.life > 0);
+  }
+  
+  draw(c) {
+    if (this.life <= 0) return;
+    
+    if (this.type === 'normal') {
+      this.trail.forEach(t => {
+        c.save();
+        c.globalAlpha = t.life * 0.5 * this.life;
+        c.fillStyle = this.color;
+        c.beginPath();
+        c.arc(t.x, t.y, this.size * 0.6, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
+      });
+    }
+    
+    c.save();
+    c.globalAlpha = Math.max(0, this.life);
+    c.translate(this.x, this.y);
+    c.rotate(this.rotation);
+    
+    if (this.type === 'smoke') {
+      c.fillStyle = `rgba(100, 100, 100, ${this.life * 0.4})`;
+      c.beginPath();
+      c.arc(0, 0, this.size, 0, Math.PI * 2);
+      c.fill();
+    } else if (this.type === 'spark') {
+      c.fillStyle = '#fff';
+      c.shadowColor = this.color;
+      c.shadowBlur = 10;
+      c.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+    } else {
+      c.fillStyle = this.color;
+      c.shadowColor = this.color;
+      c.shadowBlur = 15;
+      c.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+      c.strokeStyle = '#fff';
+      c.lineWidth = 1.5;
+      c.strokeRect(-this.size/2, -this.size/2, this.size, this.size);
+    }
+    
+    c.restore();
+  }
+}
+
+class Shockwave {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.radius = 0;
+    this.maxRadius = 200;
+    this.speed = 8;
+    this.life = 1;
+  }
+  
+  update() {
+    this.radius += this.speed;
+    this.life = 1 - (this.radius / this.maxRadius);
+  }
+  
+  draw(c) {
+    if (this.life <= 0) return;
+    c.save();
+    c.globalAlpha = this.life * 0.6;
+    c.strokeStyle = '#fff';
+    c.lineWidth = 4;
+    c.shadowColor = '#ffd700';
+    c.shadowBlur = 20;
+    c.beginPath();
+    c.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    c.stroke();
+    c.restore();
+  }
+}
+
+class BoomText {
+  constructor(x, y, text = 'BOOM') {
+    this.x = x;
+    this.y = y;
+    this.startY = y;
+    this.text = text;
+    this.time = 0;
+    this.duration = 1.8;
+    this.rotation = (Math.random() - 0.5) * 0.3;
+    this.rotSpeed = (Math.random() - 0.5) * 0.02;
+    this.alive = true;
+    this.hue = Math.random() * 360;
+    this.hueSpeed = 120;
+  }
+  
+  update(dt) {
+    this.time += dt;
+    this.rotation += this.rotSpeed;
+    this.y = this.startY - this.time * 40;
+    this.hue = (this.hue + this.hueSpeed * dt) % 360;
+    
+    if (this.time >= this.duration) {
+      this.alive = false;
+    }
+  }
+  
+  draw(c) {
+    if (!this.alive) return;
+    
+    const progress = this.time / this.duration;
+    
+    let scale;
+    if (progress < 0.15) {
+      scale = (progress / 0.15) * 1.5;
+    } else if (progress < 0.4) {
+      const t = (progress - 0.15) / 0.25;
+      scale = 1.5 - t * 0.5 + Math.sin(t * Math.PI * 2) * 0.1;
+    } else if (progress < 0.7) {
+      const t = (progress - 0.4) / 0.3;
+      scale = 1.0 + Math.sin(t * Math.PI * 3) * 0.08;
+    } else {
+      const t = (progress - 0.7) / 0.3;
+      scale = 1.0 * (1 - t);
+    }
+    
+    let alpha = 1;
+    if (progress > 0.7) {
+      alpha = 1 - (progress - 0.7) / 0.3;
+    }
+    
+    c.save();
+    c.globalAlpha = Math.max(0, alpha);
+    c.translate(this.x, this.y);
+    c.rotate(this.rotation);
+    c.scale(scale, scale);
+    
+    const fontSize = 70;
+    c.font = '900 ' + fontSize + 'px Impact, Arial Black, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    
+    const hue2 = (this.hue + 60) % 360;
+    const gradient = c.createLinearGradient(0, -fontSize/2, 0, fontSize/2);
+    gradient.addColorStop(0, hueToColor(this.hue, 100, 60));
+    gradient.addColorStop(0.5, hueToColor(hue2, 100, 70));
+    gradient.addColorStop(1, hueToColor(this.hue, 100, 60));
+    
+    c.shadowColor = hueToColor(hue2, 100, 70);
+    c.shadowBlur = 30;
+    
+    c.lineWidth = 10;
+    c.strokeStyle = '#000';
+    c.strokeText(this.text, 0, 0);
+    
+    c.lineWidth = 5;
+    c.strokeStyle = '#fff';
+    c.strokeText(this.text, 0, 0);
+    
+    c.fillStyle = gradient;
+    c.fillText(this.text, 0, 0);
+    
+    c.restore();
+  }
+}
+
+// ========== ФИГУРЫ ==========
+function createPiece(type) {
+  const baseHue = Math.random() * 360;
+  const shape = SHAPES[type].map(r => [...r]);
+  const blockHues = shape.map(row => 
+    row.map(v => v ? (baseHue + (Math.random() * 60 - 30) + 360) % 360 : 0)
+  );
+  return {
+    shape,
+    blockHues,
+    x: Math.floor(COLS/2) - Math.ceil(shape[0].length/2),
+    y: 0
+  };
+}
+function randomPiece() {
+  const types = Object.keys(SHAPES);
+  return createPiece(types[Math.floor(Math.random()*types.length)]);
+}
+
+// ========== КОЛЛИЗИИ ==========
+function collide(b, piece) {
+  for (let y = 0; y < piece.shape.length; y++) {
+    for (let x = 0; x < piece.shape[y].length; x++) {
+      if (piece.shape[y][x]) {
+        const ny = piece.y + y, nx = piece.x + x;
+        if (ny < 0 || ny >= ROWS || nx < 0 || nx >= COLS) return true;
+        if (b[ny][nx]) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function merge(b, piece) {
+  piece.shape.forEach((row, y) => {
+    row.forEach((v, x) => {
+      if (v) {
+        b[piece.y + y][piece.x + x] = piece.blockHues[y][x];
+      }
+    });
+  });
+}
+
+function rotate(shape, hues) {
+  const N = shape.length, M = shape[0].length;
+  const resShape = Array.from({length: M}, () => Array(N).fill(0));
+  const resHues = Array.from({length: M}, () => Array(N).fill(0));
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < M; x++) {
+      resShape[x][N-1-y] = shape[y][x];
+      resHues[x][N-1-y] = hues[y][x];
+    }
+  }
+  return { shape: resShape, hues: resHues };
+}
+
+function findFullLines() {
+  const full = [];
+  outer: for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (!board[y][x]) continue outer;
+    }
+    full.push(y);
+  }
+  return full;
+}
+
+function removeLines(rowIndices) {
+  const sorted = [...rowIndices].sort((a, b) => b - a);
+  for (const idx of sorted) {
+    board.splice(idx, 1);
+    board.unshift(Array(COLS).fill(0));
+  }
+}
+
+// ========== ОТРИСОВКА ==========
+function drawBlock(c, x, y, hue, size = BLOCK, time = 0) {
+  const currentHue = (hue + time * HUE_SPEED) % 360;
+  const mainColor = hueToColor(currentHue, 85, 55);
+  const highlightColor = hueToColor(currentHue, 85, 75);
+  const darkColor = hueToColor(currentHue, 85, 35);
+  
+  c.fillStyle = mainColor;
+  c.fillRect(x*size, y*size, size, size);
+  
+  c.fillStyle = highlightColor;
+  c.fillRect(x*size, y*size, size, size/4);
+  
+  c.fillStyle = darkColor;
+  c.fillRect(x*size, y*size - size/8 + size*7/8, size, size/8);
+  
+  c.strokeStyle = 'rgba(255,255,255,0.4)';
+  c.lineWidth = 2;
+  c.strokeRect(x*size, y*size, size, size);
+  
+  c.shadowColor = mainColor;
+  c.shadowBlur = 8;
+  c.strokeRect(x*size, y*size, size, size);
+  c.shadowBlur = 0;
+}
+
+function draw() {
+  const wrapper = document.getElementById('boardWrapper');
+  if (screenShake > 0) {
+    const shakeX = (Math.random() - 0.5) * screenShake;
+    const shakeY = (Math.random() - 0.5) * screenShake;
+    wrapper.style.transform = `translate(${shakeX}px, ${shakeY}px)`;
+  } else {
+    wrapper.style.transform = 'translate(0, 0)';
+  }
+  
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = '#222';
+  for (let i = 0; i <= COLS; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i*BLOCK, 0); ctx.lineTo(i*BLOCK, ROWS*BLOCK);
+    ctx.stroke();
+  }
+  for (let i = 0; i <= ROWS; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, i*BLOCK); ctx.lineTo(COLS*BLOCK, i*BLOCK);
+    ctx.stroke();
+  }
+
+  const blinkingLines = pendingLinesData ? pendingLinesData.rowIndices : [];
+  const blinkOn = Math.floor(Date.now() / 100) % 2 === 0;
+
+  for (let y = 0; y < ROWS; y++) {
+    const isPending = blinkingLines.includes(y);
+    for (let x = 0; x < COLS; x++) {
+      if (board[y][x]) {
+        if (isPending && blinkOn) {
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(x*BLOCK, y*BLOCK, BLOCK, BLOCK);
+          ctx.strokeStyle = '#ffd700';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x*BLOCK, y*BLOCK, BLOCK, BLOCK);
+        } else if (isPending) {
+          ctx.fillStyle = '#ffeb3b';
+          ctx.fillRect(x*BLOCK, y*BLOCK, BLOCK, BLOCK);
+          ctx.strokeStyle = '#ff9800';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x*BLOCK, y*BLOCK, BLOCK, BLOCK);
+        } else {
+          drawBlock(ctx, x, y, board[y][x], BLOCK, gameTime);
+        }
+      }
+    }
+  }
+
+  if (current && !pendingLinesData) {
+    current.shape.forEach((row, y) => {
+      row.forEach((v, x) => {
+        if (v) {
+          drawBlock(ctx, current.x + x, current.y + y, current.blockHues[y][x], BLOCK, gameTime);
+        }
+      });
+    });
+  }
+
+  drawParticles();
+
+  nextCtx.fillStyle = '#111';
+  nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+  if (next) {
+    const size = 25;
+    const offX = (nextCanvas.width - next.shape[0].length * size) / 2;
+    const offY = (nextCanvas.height - next.shape.length * size) / 2;
+    next.shape.forEach((row, y) => {
+      row.forEach((v, x) => {
+        if (v) {
+          const currentHue = (next.blockHues[y][x] + gameTime * HUE_SPEED) % 360;
+          nextCtx.fillStyle = hueToColor(currentHue, 85, 55);
+          nextCtx.fillRect(offX + x*size, offY + y*size, size, size);
+          nextCtx.fillStyle = hueToColor(currentHue, 85, 75);
+          nextCtx.fillRect(offX + x*size, offY + y*size, size, size/4);
+          nextCtx.strokeStyle = 'rgba(255,255,255,0.4)';
+          nextCtx.lineWidth = 2;
+          nextCtx.strokeRect(offX + x*size, offY + y*size, size, size);
+        }
+      });
+    });
+  }
+}
+
+// ========== ДЕЙСТВИЯ ==========
+function lockPiece(clearedLines) {
+  if (clearedLines.length > 0) {
+    pendingLinesData = {
+      rowIndices: clearedLines,
+      count: clearedLines.length
+    };
+    pendingLinesCount = clearedLines.length;
+    showMathProblem(clearedLines.length);
+  } else {
+    placePiece();
+  }
+}
+
+function drop() {
+  current.y++;
+  if (collide(board, current)) {
+    current.y--;
+    merge(board, current);
+    const cleared = findFullLines();
+    lockPiece(cleared);
+  }
+  dropCounter = 0;
+}
+
+function hardDrop() {
+  while (!collide(board, current)) current.y++;
+  current.y--;
+  merge(board, current);
+  const cleared = findFullLines();
+  lockPiece(cleared);
+  dropCounter = 0;
+}
+
+function move(dir) {
+  current.x += dir;
+  if (collide(board, current)) current.x -= dir;
+}
+
+function rotatePiece() {
+  const oldShape = current.shape;
+  const oldHues = current.blockHues;
+  const rotated = rotate(current.shape, current.blockHues);
+  current.shape = rotated.shape;
+  current.blockHues = rotated.hues;
+  
+  let offset = 1;
+  while (collide(board, current)) {
+    current.x += offset;
+    offset = -(offset + (offset > 0 ? 1 : -1));
+    if (Math.abs(offset) > current.shape[0].length) {
+      current.shape = oldShape;
+      current.blockHues = oldHues;
+      return;
+    }
+  }
+}
+
+function placePiece() {
+  current = next;
+  next = randomPiece();
+  if (collide(board, current)) {
+    endGame();
+  }
+}
+
+// ========== УРАВНЕНИЯ ==========
+function generateEquation(linesCount) {
+  let eq, answer, difficulty;
+
+  if (linesCount === 1) {
+    difficulty = 'Лёгкая (4 класс)';
+    const type = Math.floor(Math.random() * 3);
+    if (type === 0) {
+      const a = Math.floor(Math.random() * 20) + 1;
+      const x = Math.floor(Math.random() * 30) + 1;
+      eq = `x + ${a} = ${x + a}`; answer = x;
+    } else if (type === 1) {
+      const x = Math.floor(Math.random() * 20) + 1;
+      const b = Math.floor(Math.random() * 20) + 1;
+      eq = `${x + b} − x = ${b}`; answer = x;
+    } else {
+      const a = Math.floor(Math.random() * 9) + 2;
+      const x = Math.floor(Math.random() * 10) + 1;
+      eq = `x · ${a} = ${x * a}`; answer = x;
+    }
+  } else if (linesCount === 2) {
+    difficulty = 'Средняя (4 класс)';
+    const type = Math.floor(Math.random() * 3);
+    if (type === 0) {
+      const a = Math.floor(Math.random() * 30) + 10;
+      const x = Math.floor(Math.random() * 40) + 5;
+      eq = `x + ${a} = ${x + a}`; answer = x;
+    } else if (type === 1) {
+      const a = Math.floor(Math.random() * 12) + 2;
+      const x = Math.floor(Math.random() * 15) + 2;
+      eq = `${a} · x = ${a * x}`; answer = x;
+    } else {
+      const a = Math.floor(Math.random() * 8) + 2;
+      const x = Math.floor(Math.random() * 10) + 2;
+      eq = `x : ${a} = ${x}`; answer = x * a;
+    }
+  } else if (linesCount === 3) {
+    difficulty = 'Сложная (5 класс)';
+    const type = Math.floor(Math.random() * 3);
+    if (type === 0) {
+      const a = Math.floor(Math.random() * 5) + 2;
+      const x = Math.floor(Math.random() * 10) + 1;
+      const b = Math.floor(Math.random() * 10) + 1;
+      eq = `${a}·x + ${b} = ${a * x + b}`; answer = x;
+    } else if (type === 1) {
+      const a = Math.floor(Math.random() * 5) + 2;
+      const b = Math.floor(Math.random() * 10) + 1;
+      const x = Math.floor(Math.random() * 10) + 3;
+      eq = `${a}·x − ${b} = ${a * x - b}`; answer = x;
+    } else {
+      const a = Math.floor(Math.random() * 8) + 1;
+      const b = Math.floor(Math.random() * 5) + 2;
+      const x = Math.floor(Math.random() * 10) + 1;
+      eq = `(x + ${a}) · ${b} = ${(x + a) * b}`; answer = x;
+    }
+  } else {
+    difficulty = 'ОЧЕНЬ сложная (5 класс)';
+    const type = Math.floor(Math.random() * 3);
+    if (type === 0) {
+      const a = Math.floor(Math.random() * 8) + 3;
+      const x = Math.floor(Math.random() * 15) + 2;
+      const b = Math.floor(Math.random() * 20) + 5;
+      eq = `${a}·x + ${b} = ${a * x + b}`; answer = x;
+    } else if (type === 1) {
+      const a = Math.floor(Math.random() * 6) + 2;
+      const b = Math.floor(Math.random() * 5) + 1;
+      const x = Math.floor(Math.random() * 10) + b + 1;
+      eq = `${a}·(x − ${b}) = ${a * (x - b)}`; answer = x;
+    } else {
+      const a = Math.floor(Math.random() * 8) + 5;
+      const b = Math.floor(Math.random() * 3) + 1;
+      const x = Math.floor(Math.random() * 10) + 1;
+      eq = `${a}·x − ${b}·x = ${(a - b) * x}`; answer = x;
+    }
+  }
+
+  return { eq, answer, difficulty };
+}
+
+// ========== МОДАЛЬНОЕ ОКНО ==========
+let currentAnswer = 0;
+function showMathProblem(linesCount) {
+  paused = true;
+  const { eq, answer, difficulty } = generateEquation(linesCount);
+  document.getElementById('equation').textContent = eq;
+  document.getElementById('difficultyLabel').textContent = `Сложность: ${difficulty}`;
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('answerInput').value = '';
+  currentAnswer = answer;
+  document.getElementById('mathModal').classList.add('active');
+  setTimeout(() => document.getElementById('answerInput').focus(), 100);
+}
+
+function checkAnswer() {
+  const input = document.getElementById('answerInput');
+  const feedback = document.getElementById('feedback');
+  const userAnswer = parseInt(input.value);
+
+  if (isNaN(userAnswer)) {
+    feedback.textContent = 'Введи число!';
+    feedback.className = 'feedback wrong';
+    return;
+  }
+
+  if (userAnswer === currentAnswer) {
+    feedback.textContent = '✅ Правильно! 💥💥 BOOM! 💥💥 +500 бонусных очков!';
+    feedback.className = 'feedback correct';
+    score += 500;
+    solved++;
+    startMegaExplosion();
+  } else {
+    // ❌ НЕПРАВИЛЬНЫЙ ОТВЕТ - ряды НЕ убираются!
+    feedback.textContent = `❌ Неверно! Ряды остаются! Правильный ответ: x = ${currentAnswer}`;
+    feedback.className = 'feedback wrong';
+    setTimeout(() => {
+      // НЕ вызываем removeLines() и applyLineScore()
+      document.getElementById('mathModal').classList.remove('active');
+      pendingLinesData = null; // убираем мигание
+      paused = false;
+      placePiece();
+    }, 2000);
+  }
+  updateInfo();
+}
+
+function startMegaExplosion() {
+  createMegaExplosion(pendingLinesData.rowIndices);
+  removeLines(pendingLinesData.rowIndices);
+  applyLineScore(pendingLinesCount);
+  pendingLinesData = null;
+
+  setTimeout(() => {
+    document.getElementById('mathModal').classList.remove('active');
+  }, 400);
+
+  setTimeout(() => {
+    paused = false;
+    placePiece();
+  }, 2500);
+}
+
+function createMegaExplosion(rowIndices) {
+  const centerX = canvas.width / 2;
+  let centerY = 0;
+  
+  for (const rowIdx of rowIndices) {
+    centerY += rowIdx * BLOCK + BLOCK / 2;
+  }
+  centerY /= rowIndices.length;
+  
+  shockwaves.push(new Shockwave(centerX, centerY));
+  boomTexts.push(new BoomText(centerX, centerY, 'BOOM'));
+  
+  if (rowIndices.length >= 4) {
+    boomTexts.push(new BoomText(centerX - 60, centerY - 30, 'BOOM!'));
+    boomTexts.push(new BoomText(centerX + 60, centerY + 30, 'BOOM!'));
+  }
+  
+  for (const rowIdx of rowIndices) {
+    for (let x = 0; x < COLS; x++) {
+      const hue = board[rowIdx][x];
+      if (!hue) continue;
+      const currentHue = (hue + gameTime * HUE_SPEED) % 360;
+      const color = hueToColor(currentHue, 90, 60);
+      
+      const cx = x * BLOCK + BLOCK / 2;
+      const cy = rowIdx * BLOCK + BLOCK / 2;
+      
+      const normalCount = 25 + Math.floor(Math.random() * 11);
+      for (let i = 0; i < normalCount; i++) {
+        particles.push(new Particle(cx, cy, color, 'normal'));
+      }
+      
+      const sparkCount = 15 + Math.floor(Math.random() * 6);
+      for (let i = 0; i < sparkCount; i++) {
+        particles.push(new Particle(cx, cy, color, 'spark'));
+      }
+      
+      const smokeCount = 5 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < smokeCount; i++) {
+        particles.push(new Particle(cx, cy, '#888', 'smoke'));
+      }
+    }
+  }
+  
+  flashAlpha = 1.5;
+  screenShake = 20;
+}
+
+function applyLineScore(cleared) {
+  const points = [0, 100, 300, 500, 800];
+  score += points[cleared] * level;
+  lines += cleared;
+  level = Math.floor(lines / 10) + 1;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 80);
+  updateInfo();
+}
+
+function updateInfo() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('level').textContent = level;
+  document.getElementById('lines').textContent = lines;
+  document.getElementById('solved').textContent = solved;
+}
+
+function endGame() {
+  gameOver = true;
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('finalSolved').textContent = solved;
+  document.getElementById('gameOver').classList.add('active');
+}
+
+// ========== УПРАВЛЕНИЕ ==========
+document.addEventListener('keydown', e => {
+  if (gameOver) return;
+  if (document.getElementById('mathModal').classList.contains('active')) {
+    if (e.key === 'Enter') checkAnswer();
+    return;
+  }
+  if (paused) return;
+  if (e.key === 'ArrowLeft') move(-1);
+  else if (e.key === 'ArrowRight') move(1);
+  else if (e.key === 'ArrowDown') drop();
+  else if (e.key === 'ArrowUp') rotatePiece();
+  else if (e.key === ' ') { e.preventDefault(); hardDrop(); }
+  else if (e.key === 'p' || e.key === 'P') paused = !paused;
+});
+
+// ========== ОБНОВЛЕНИЕ ЧАСТИЦ ==========
+function updateParticles(dt) {
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => p.update());
+  
+  shockwaves = shockwaves.filter(s => s.life > 0);
+  shockwaves.forEach(s => s.update());
+  
+  boomTexts = boomTexts.filter(b => b.alive);
+  boomTexts.forEach(b => b.update(dt));
+  
+  if (flashAlpha > 0) flashAlpha -= 0.03;
+  if (screenShake > 0) screenShake -= 0.8;
+}
+
+function drawParticles() {
+  shockwaves.forEach(s => s.draw(ctx));
+  particles.forEach(p => p.draw(ctx));
+  boomTexts.forEach(b => b.draw(ctx));
+  
+  if (flashAlpha > 0) {
+    ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, flashAlpha * 0.8)})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.fillStyle = `rgba(255, 215, 0, ${flashAlpha * 0.3})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+// ========== ИГРОВОЙ ЦИКЛ ==========
+let lastFrameTime = 0;
+function update(time = 0) {
+  if (gameOver) return;
+  const delta = time - lastTime;
+  const frameDelta = (time - lastFrameTime) / 1000;
+  lastFrameTime = time;
+  lastTime = time;
+  
+  gameTime += frameDelta;
+
+  updateParticles(frameDelta);
+
+  if (!paused) {
+    dropCounter += delta;
+    if (dropCounter > dropInterval) drop();
+  }
+  draw();
+  requestAnimationFrame(update);
+}
+
+// ========== СТАРТ ==========
+current = randomPiece();
+next = randomPiece();
+updateInfo();
+update();
+</script>
+</body>
+</html>
